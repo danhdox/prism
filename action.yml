@@ -1,0 +1,56 @@
+name: 'AI Triage'
+description: 'AI-powered triage for issues and PRs with duplicate detection, review generation, and smart labeling'
+author: 'danhdox'
+
+branding:
+  icon: 'activity'
+  color: 'purple'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+    default: ${{ github.token }}
+  
+  llm-api-key:
+    description: 'API key for LLM provider (OpenAI, Anthropic, etc.)'
+    required: true
+  
+  llm-provider:
+    description: 'LLM provider to use (openai, anthropic)'
+    required: false
+    default: 'openai'
+  
+  llm-model:
+    description: 'LLM model to use'
+    required: false
+    default: 'gpt-4'
+  
+  database-url:
+    description: 'PostgreSQL connection URL with pgvector for persistent similarity (optional)'
+    required: false
+    default: ''
+  
+  duplicate-threshold:
+    description: 'Similarity threshold for duplicate detection (0.0-1.0)'
+    required: false
+    default: '0.85'
+  
+  enable-duplicate-detection:
+    description: 'Enable duplicate issue/PR detection'
+    required: false
+    default: 'true'
+  
+  enable-pr-review:
+    description: 'Enable structured PR review generation'
+    required: false
+    default: 'true'
+  
+  enable-labeling:
+    description: 'Enable automatic label application'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'

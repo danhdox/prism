@@ -1,0 +1,49 @@
+{
+  "name": "prism-action",
+  "version": "1.0.0",
+  "description": "AI-powered GitHub Action for smarter open-source triage",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write 'src/**/*.ts'",
+    "package": "npm run build"
+  },
+  "keywords": [
+    "github-action",
+    "ai",
+    "triage",
+    "duplicate-detection",
+    "pr-review"
+  ],
+  "author": "danhdox",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/github": "^6.0.0",
+    "openai": "^4.28.0",
+    "pg": "^8.11.3",
+    "pgvector": "^0.1.8",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.11.19",
+    "@types/pg": "^8.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "@vercel/ncc": "^0.38.1",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.2.5",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "undici": "^6.23.0"
+  }
+}
