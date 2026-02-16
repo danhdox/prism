@@ -1,0 +1,251 @@
+# PRism - AI Triage GitHub Action
+
+AI-powered GitHub Action for smarter open-source triage. PRism detects duplicate issues and PRs, generates structured PR review summaries, applies intelligent labels, and optionally supports Postgres + pgvector for persistent similarity.
+
+## Features
+
+- 🔍 **Duplicate Detection**: Automatically detects duplicate issues and PRs using AI-powered embeddings
+- 📝 **Structured PR Reviews**: Generates comprehensive, structured code reviews with findings categorized by type and severity
+- 🏷️ **Smart Labeling**: Automatically suggests and applies relevant labels based on content analysis
+- 💾 **Stateful/Stateless Modes**: Run in-memory (stateless) by default, or with Postgres + pgvector for persistent similarity search
+- ⚡ **Fast**: Posts comments within 60 seconds
+- 🔒 **Safe**: Never auto-closes or auto-merges anything
+- 🎯 **Configurable**: Extensive configuration options for different use cases
+
+## Quick Start
+
+### Basic Setup (Stateless Mode)
+
+Create `.github/workflows/ai-triage.yml`:
+
+```yaml
+name: AI Triage
+
+on:
+  issues:
+    types: [opened, edited]
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: danhdox/prism@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          llm-api-key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Advanced Setup (Stateful Mode with Postgres)
+
+```yaml
+name: AI Triage
+
+on:
+  issues:
+    types: [opened, edited]
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: danhdox/prism@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          llm-api-key: ${{ secrets.OPENAI_API_KEY }}
+          llm-model: 'gpt-4-turbo-preview'
+          database-url: ${{ secrets.DATABASE_URL }}
+          duplicate-threshold: '0.80'
+          enable-duplicate-detection: 'true'
+          enable-pr-review: 'true'
+          enable-labeling: 'true'
+```
+
+## Configuration
+
+### Inputs
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `github-token` | GitHub token for API access | Yes | `${{ github.token }}` |
+| `llm-api-key` | API key for LLM provider (OpenAI) | Yes | - |
+| `llm-provider` | LLM provider to use | No | `openai` |
+| `llm-model` | LLM model to use | No | `gpt-4` |
+| `database-url` | PostgreSQL URL with pgvector (optional) | No | - |
+| `duplicate-threshold` | Similarity threshold (0.0-1.0) | No | `0.85` |
+| `enable-duplicate-detection` | Enable duplicate detection | No | `true` |
+| `enable-pr-review` | Enable PR review generation | No | `true` |
+| `enable-labeling` | Enable automatic labeling | No | `true` |
+
+### Setting Up Secrets
+
+1. **OpenAI API Key**: Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+   - Go to your repository Settings → Secrets and variables → Actions
+   - Add a new secret named `OPENAI_API_KEY` with your API key
+
+2. **Database URL** (Optional for stateful mode):
+   - Set up a PostgreSQL database with pgvector extension
+   - Add a secret named `DATABASE_URL` with format: `postgresql://user:password@host:port/database`
+
+### Setting Up PostgreSQL with pgvector
+
+For stateful mode with persistent similarity search:
+
+```bash
+# Install pgvector extension
+CREATE EXTENSION vector;
+
+# The action will automatically create required tables on first run
+```
+
+Or use managed services:
+- [Supabase](https://supabase.com/) (includes pgvector)
+- [Neon](https://neon.tech/) (PostgreSQL with pgvector support)
+- [Railway](https://railway.app/) (PostgreSQL with extensions)
+
+## How It Works
+
+### Duplicate Detection
+
+1. Generates embeddings for issue/PR title and body
+2. Compares with existing issues/PRs using cosine similarity
+3. Uses LLM to analyze if items are truly duplicates
+4. Posts a comment if duplicates are found
+5. Never auto-closes (respects user decision)
+
+### PR Review
+
+1. Fetches PR diff and changed files
+2. Analyzes code changes using LLM
+3. Generates structured review with:
+   - Summary
+   - Issues (critical, major, minor)
+   - Suggestions
+   - Highlights/Praise
+   - Questions
+   - Estimated complexity
+   - Suggested labels
+4. Posts review as a comment
+5. Optionally applies suggested labels
+
+### Smart Labeling
+
+1. Analyzes issue/PR content
+2. Compares against existing repository labels
+3. Suggests relevant labels
+4. Applies labels automatically
+
+## Examples
+
+### Duplicate Detection Comment
+
+```
+🔍 Potential Duplicate Detected
+
+This issue appears to be similar to:
+
+- #42 - Implement dark mode support (87.5% similar)
+- #38 - Add theme switching functionality (82.3% similar)
+
+Analysis:
+This issue requests dark mode support, which is essentially the same 
+feature requested in #42. While the wording differs, both issues are 
+asking for the ability to switch between light and dark themes.
+
+---
+This analysis was generated by PRism AI triage.
+```
+
+### PR Review Comment
+
+```
+## 🤖 AI Code Review
+
+**Summary:** This PR adds user authentication with JWT tokens. 
+The implementation follows best practices with proper error handling 
+and security measures.
+
+### Findings
+
+#### ⚠️ Issues
+- 🔴 **Security: JWT Secret in Code**
+  The JWT secret is hardcoded in the source. This should be moved to 
+  environment variables.
+  📁 `src/auth/jwt.ts`:42
+
+#### 💡 Suggestions
+- 🟡 **Add Rate Limiting**
+  Consider adding rate limiting to the login endpoint to prevent 
+  brute force attacks.
+  📁 `src/routes/auth.ts`:15
+
+#### ✨ Highlights
+- 🔵 **Well-Tested**
+  Excellent test coverage with both unit and integration tests.
+
+**Estimated Complexity:** medium
+
+**Suggested Labels:** `security`, `authentication`, `backend`
+
+---
+This review was generated by PRism AI triage.
+```
+
+## Architecture
+
+### Stateless Mode (Default)
+
+- In-memory embedding cache (lost after run)
+- No persistent storage required
+- Best for: Small repos, testing, low volume
+
+### Stateful Mode (with Postgres)
+
+- Persistent embeddings in PostgreSQL
+- Fast similarity search with pgvector
+- Best for: Large repos, high volume, production use
+
+### Caching Strategy
+
+- Embeddings cached by SHA for PRs
+- Embeddings cached by issue number for issues
+- Avoids re-computing embeddings for unchanged content
+
+### Performance
+
+- Target: < 60s per issue/PR
+- Parallel processing of multiple features
+- Efficient embedding reuse
+- Optimized similarity search
+
+## Limitations
+
+- Does not auto-close or auto-merge anything (by design)
+- Requires user-supplied LLM API key (costs apply)
+- Stateless mode cannot find duplicates from previous runs
+- LLM responses may occasionally be incorrect
+
+## Security
+
+- ✅ Strict JSON validation using Zod
+- ✅ No secrets in code
+- ✅ User-supplied API keys only
+- ✅ No external data transmission (except to LLM provider)
+- ✅ Read-only GitHub operations (except comments and labels)
+
+## Contributing
+
+Contributions welcome! Please open an issue or PR.
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Support
+
+- 📖 [Documentation](https://github.com/danhdox/prism)
+- 🐛 [Issue Tracker](https://github.com/danhdox/prism/issues)
+- 💬 [Discussions](https://github.com/danhdox/prism/discussions)

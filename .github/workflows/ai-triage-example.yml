@@ -1,0 +1,28 @@
+name: AI Triage Example
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  ai-triage:
+    runs-on: ubuntu-latest
+    name: AI Triage
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: read
+    
+    steps:
+      - name: Run AI Triage
+        uses: danhdox/prism@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          llm-api-key: ${{ secrets.OPENAI_API_KEY }}
+          llm-model: 'gpt-4'
+          duplicate-threshold: '0.85'
+          enable-duplicate-detection: 'true'
+          enable-pr-review: 'true'
+          enable-labeling: 'true'
