@@ -232,7 +232,7 @@ export class TriageService {
       const text = `${pr.title}\n\n${pr.body || ''}`;
       const embedding = await this.llm.generateEmbedding(text);
       await this.storage.storeEmbedding(`pr-${pr.head.sha}`, embedding);
-      const similarItems = await this.findSimilarPrs(owner, repo, embedding, pr.number);
+      const similarItems = await this.findSimilarPrs(owner, repo, embedding, pr.number, 'open');
 
       if (similarItems.length === 0) {
         core.info('No similar PRs found');
@@ -696,7 +696,28 @@ export class TriageService {
     );
 
     if (similarFromDb.length > 0) {
-      return similarFromDb.filter(item => item.number !== excludeNumber && item.type === 'pr');
+      const prMatches = similarFromDb.filter(item => item.number !== excludeNumber && item.type === 'pr');
+      if (state === 'all') {
+        return prMatches;
+      }
+
+      const matchesWithState = await Promise.all(
+        prMatches.map(async (item) => {
+          try {
+            const fullPr = await this.github.getPullRequest(owner, repo, item.number);
+            if (!fullPr.state || fullPr.state === state) {
+              return item;
+            }
+          } catch (error) {
+            core.warning(`Unable to verify state for PR #${item.number}: ${error}`);
+          }
+          return null;
+        })
+      );
+
+      return matchesWithState
+        .filter((item): item is SimilarItem => Boolean(item))
+        .slice(0, 10);
     }
 
     const prs = await this.github.getPullRequests(owner, repo, state);

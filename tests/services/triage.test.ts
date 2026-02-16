@@ -344,6 +344,48 @@ describe('TriageService label triggers', () => {
       ['duplicate']
     );
   });
+
+  it('ignores closed PR matches when triaging an open PR', async () => {
+    const storage = makeStorage();
+    const config: Config = {
+      ...baseConfig,
+      enableDuplicateDetection: true,
+      enablePrReview: false,
+      enableLabeling: false,
+    };
+
+    storage.findSimilar.mockResolvedValueOnce([
+      {
+        number: 6,
+        title: 'Closed smoke-test PR',
+        url: 'https://github.com/example-org/example-repo/pull/6',
+        similarity: 0.91,
+        type: 'pr',
+      },
+    ]);
+
+    jest.spyOn(LLMService.prototype, 'generateEmbedding').mockResolvedValue([0.1, 0.2, 0.3]);
+    const detectDuplicateSpy = jest.spyOn(LLMService.prototype, 'detectDuplicate').mockResolvedValue({
+      isDuplicate: true,
+      similarItems: [],
+      reasoning: 'fallback',
+    });
+
+    jest.spyOn(GitHubService.prototype, 'getPullRequest').mockResolvedValue({
+      number: 6,
+      title: 'Closed smoke-test PR',
+      body: 'Closed test PR body',
+      html_url: 'https://github.com/example-org/example-repo/pull/6',
+      state: 'closed',
+    } as any);
+    const postPrCommentSpy = jest.spyOn(GitHubService.prototype, 'postPullRequestComment').mockResolvedValue();
+
+    const triage = new TriageService(config, storage);
+    await triage.processPullRequest(prEventFixture as any);
+
+    expect(detectDuplicateSpy).not.toHaveBeenCalled();
+    expect(postPrCommentSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('TriageService issue dedupe clarity', () => {
