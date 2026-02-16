@@ -1,15 +1,64 @@
 import OpenAI from 'openai';
-import { Config, DuplicateResult, DuplicateResultSchema, PrReview, PrReviewSchema, LabelSuggestion, LabelSuggestionSchema } from '../types';
+import { type ZodType } from 'zod';
+import {
+  Config,
+  DuplicateResult,
+  DuplicateResultSchema,
+  PrReview,
+  PrReviewSchema,
+  LabelSuggestion,
+  LabelSuggestionSchema,
+  VisionAlignment,
+  VisionAlignmentSchema,
+} from '../types';
 
 export class LLMService {
   private client: OpenAI;
   private model: string;
+  private readonly parseRetryCount = 2;
 
   constructor(config: Config) {
     this.client = new OpenAI({
       apiKey: config.llmApiKey,
     });
     this.model = config.llmModel;
+  }
+
+  private async parseLlmResponse<T>(
+    responseFactory: () => Promise<string | null>,
+    schema: ZodType<T>,
+    fallback: T
+  ): Promise<T> {
+    for (let attempt = 0; attempt <= this.parseRetryCount; attempt++) {
+      try {
+        const content = this.sanitizeJson(await responseFactory());
+        return schema.parse(JSON.parse(content));
+      } catch {
+        // Retry on parse or schema validation errors
+      }
+    }
+
+    return fallback;
+  }
+
+  private sanitizeJson(content: string | null): string {
+    if (!content) {
+      return '';
+    }
+
+    const trimmed = content.trim();
+    const fencedMatch = trimmed.match(/```(?:json)?\n([\s\S]*?)```/i);
+    if (fencedMatch?.[1]) {
+      return fencedMatch[1].trim();
+    }
+
+    const firstBrace = trimmed.indexOf('{');
+    const lastBrace = trimmed.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return trimmed.slice(firstBrace, lastBrace + 1).trim();
+    }
+
+    return trimmed;
   }
 
   /**
@@ -66,23 +115,25 @@ Respond with a JSON object:
 
 Only include items you consider duplicates in similarItems. If not a duplicate, return empty array.`;
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: [
-        { role: 'system', content: 'You are a helpful GitHub issue triage assistant. Always respond with valid JSON.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
+    const responseFactory = async () => {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: 'You are a helpful GitHub issue triage assistant. Always respond with valid JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      });
+
+      return response.choices[0].message.content;
+    };
+
+    return this.parseLlmResponse(responseFactory, DuplicateResultSchema, {
+      isDuplicate: false,
+      similarItems: [],
+      reasoning: 'Unable to parse LLM duplicate classification response. Falling back to non-duplicate.',
     });
-
-    const content = response.choices[0].message.content;
-    if (!content) {
-      throw new Error('No response from LLM');
-    }
-
-    const result = JSON.parse(content);
-    return DuplicateResultSchema.parse(result);
   }
 
   /**
@@ -128,23 +179,26 @@ Respond with JSON:
   "estimatedComplexity": "low|medium|high"
 }`;
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: [
-        { role: 'system', content: 'You are a helpful code review assistant. Always respond with valid JSON.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
+    const responseFactory = async () => {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: 'You are a helpful code review assistant. Always respond with valid JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      });
+
+      return response.choices[0].message.content;
+    };
+
+    return this.parseLlmResponse(responseFactory, PrReviewSchema, {
+      summary: 'AI review unavailable.',
+      findings: [],
+      suggestedLabels: [],
+      estimatedComplexity: 'low',
     });
-
-    const content = response.choices[0].message.content;
-    if (!content) {
-      throw new Error('No response from LLM');
-    }
-
-    const result = JSON.parse(content);
-    return PrReviewSchema.parse(result);
   }
 
   /**
@@ -175,23 +229,72 @@ Respond with JSON:
   "reasoning": "Brief explanation of label choices"
 }`;
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      messages: [
-        { role: 'system', content: 'You are a helpful labeling assistant. Always respond with valid JSON.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
+    const responseFactory = async () => {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: 'You are a helpful labeling assistant. Always respond with valid JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      });
+
+      return response.choices[0].message.content;
+    };
+
+    return this.parseLlmResponse(responseFactory, LabelSuggestionSchema, {
+      labels: [],
+      reasoning: 'Unable to parse label suggestions. No labels were applied.',
     });
+  }
 
-    const content = response.choices[0].message.content;
-    if (!content) {
-      throw new Error('No response from LLM');
-    }
+  /**
+   * Assess PR alignment against a repository vision statement
+   */
+  async assessVisionAlignment(
+    title: string,
+    body: string,
+    visionDocument: string,
+    reviewSummary: string
+  ): Promise<VisionAlignment> {
+    const prompt = `You are a product strategy validator.
 
-    const result = JSON.parse(content);
-    return LabelSuggestionSchema.parse(result);
+Vision document:
+${visionDocument}
+
+PR title: ${title}
+PR body: ${body || 'No description provided'}
+PR review summary: ${reviewSummary}
+
+Return JSON:
+{
+  "fit": "aligned|off-track|neutral",
+  "score": 0.0,
+  "concerns": ["string"],
+  "recommendation": "string"
+}`;
+
+    const responseFactory = async () => {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: 'system', content: 'You are a strict product strategy review assistant. Return valid JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+      });
+
+      return response.choices[0].message.content;
+    };
+
+    return this.parseLlmResponse(responseFactory, VisionAlignmentSchema, {
+      fit: 'neutral',
+      score: 0.5,
+      concerns: [],
+      recommendation: 'Unable to parse PR vision assessment. Treat as neutral.',
+    });
   }
 
   /**
@@ -207,11 +310,19 @@ Respond with JSON:
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
+      if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) {
+        throw new Error('Vectors must contain finite values');
+      }
       dotProduct += a[i] * b[i];
       normA += a[i] * a[i];
       normB += b[i] * b[i];
     }
 
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    if (denominator === 0) {
+      return 0;
+    }
+
+    return dotProduct / denominator;
   }
 }

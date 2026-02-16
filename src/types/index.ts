@@ -7,6 +7,10 @@ export const ConfigSchema = z.object({
   llmProvider: z.enum(['openai', 'anthropic']),
   llmModel: z.string(),
   databaseUrl: z.string().optional(),
+  runBacklog: z.boolean(),
+  backlogLimit: z.number().int().positive().max(500).optional(),
+  backlogReportIssue: z.number().positive().int().optional(),
+  visionDocument: z.string().optional(),
   duplicateThreshold: z.number().min(0).max(1),
   enableDuplicateDetection: z.boolean(),
   enablePrReview: z.boolean(),
@@ -57,6 +61,15 @@ export const LabelSuggestionSchema = z.object({
 });
 
 export type LabelSuggestion = z.infer<typeof LabelSuggestionSchema>;
+
+export const VisionAlignmentSchema = z.object({
+  fit: z.enum(['aligned', 'off-track', 'neutral']),
+  score: z.number().min(0).max(1),
+  concerns: z.array(z.string()),
+  recommendation: z.string(),
+});
+
+export type VisionAlignment = z.infer<typeof VisionAlignmentSchema>;
 
 // GitHub webhook event types
 export interface IssueEvent {

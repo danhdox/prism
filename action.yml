@@ -30,6 +30,26 @@ inputs:
     description: 'PostgreSQL connection URL with pgvector for persistent similarity (optional)'
     required: false
     default: ''
+
+  run-backlog:
+    description: 'Enable backlog scan mode for schedule/manual dispatch'
+    required: false
+    default: 'false'
+
+  backlog-limit:
+    description: 'Maximum number of open items to process in one backlog run'
+    required: false
+    default: '200'
+
+  backlog-report-issue:
+    description: 'Issue number to post the backlog summary report to'
+    required: false
+    default: ''
+
+  vision-document:
+    description: 'Optional vision / mission statement used to assess PR fit during backlog runs'
+    required: false
+    default: ''
   
   duplicate-threshold:
     description: 'Similarity threshold for duplicate detection (0.0-1.0)'

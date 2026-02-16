@@ -1,0 +1,17 @@
+{
+  "action": "opened",
+  "issue": {
+    "number": 101,
+    "title": "Cache key invalidation on PRs",
+    "body": "The cache layer appears to return stale SHA matches.",
+    "user": {
+      "login": "octocat"
+    },
+    "labels": [],
+    "html_url": "https://github.com/example-org/example-repo/issues/101",
+    "created_at": "2026-02-16T00:00:00Z"
+  },
+  "repository": {
+    "full_name": "example-org/example-repo"
+  }
+}

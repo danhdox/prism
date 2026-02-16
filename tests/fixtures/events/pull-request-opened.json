@@ -1,0 +1,23 @@
+{
+  "action": "opened",
+  "pull_request": {
+    "number": 77,
+    "title": "Add vector caching for PR analysis",
+    "body": "This adds SHA-based cache handling for PR embeddings.",
+    "user": {
+      "login": "octocat"
+    },
+    "labels": [],
+    "html_url": "https://github.com/example-org/example-repo/pull/77",
+    "head": {
+      "sha": "c0ffee1234567890abcd"
+    },
+    "base": {
+      "sha": "badc0ffee1234567890beef"
+    },
+    "created_at": "2026-02-16T00:00:00Z"
+  },
+  "repository": {
+    "full_name": "example-org/example-repo"
+  }
+}

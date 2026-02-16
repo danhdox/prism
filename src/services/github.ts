@@ -11,13 +11,13 @@ export class GitHubService {
   /**
    * Get all issues from the repository
    */
-  async getIssues(owner: string, repo: string): Promise<any[]> {
+  async getIssues(owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'all'): Promise<any[]> {
     const issues = await this.octokit.paginate(
       this.octokit.rest.issues.listForRepo,
       {
         owner,
         repo,
-        state: 'all',
+        state,
         per_page: 100,
       }
     );
@@ -29,13 +29,13 @@ export class GitHubService {
   /**
    * Get all pull requests from the repository
    */
-  async getPullRequests(owner: string, repo: string): Promise<any[]> {
+  async getPullRequests(owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'all'): Promise<any[]> {
     return await this.octokit.paginate(
       this.octokit.rest.pulls.list,
       {
         owner,
         repo,
-        state: 'all',
+        state,
         per_page: 100,
       }
     );

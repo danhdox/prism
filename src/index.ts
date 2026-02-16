@@ -14,7 +14,7 @@ async function run(): Promise<void> {
   try {
     // Validate context
     if (!validateContext()) {
-      core.info('Action only runs on issues and pull_request events. Skipping.');
+      core.info('Action only runs on issue/PR/backlog events. Skipping.');
       return;
     }
 
@@ -43,13 +43,26 @@ async function run(): Promise<void> {
 
       // Process based on event type
       const context = github.context;
-
       if (eventType === 'issues') {
         const payload = context.payload as unknown as IssueEvent;
         await triage.processIssue(payload);
       } else if (eventType === 'pull_request') {
         const payload = context.payload as unknown as PullRequestEvent;
         await triage.processPullRequest(payload);
+      } else if (eventType === 'backlog') {
+        if (!config.runBacklog) {
+          core.info('Backlog run disabled (run-backlog=false). Skipping.');
+        } else if (!context.payload.repository?.full_name) {
+          throw new Error('Missing repository context for backlog run.');
+        } else {
+          const [owner, repo] = context.payload.repository.full_name.split('/');
+          const reportItems = await triage.processBacklog(owner, repo);
+          core.info(`Backlog scan completed: ${reportItems.length} item(s) scored.`);
+          if (config.backlogReportIssue) {
+            await triage.postBacklogReport(owner, repo, config.backlogReportIssue, reportItems);
+            core.info(`Posted backlog report to issue #${config.backlogReportIssue}`);
+          }
+        }
       }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
