@@ -1,4 +1,4 @@
-name: 'AI Triage'
+name: 'PRism'
 description: 'AI-powered triage for issues and PRs with duplicate detection, review generation, and smart labeling'
 author: 'danhdox'
 
